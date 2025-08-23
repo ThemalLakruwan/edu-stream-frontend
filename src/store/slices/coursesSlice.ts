@@ -1,30 +1,61 @@
+// frontend/src/store/slices/coursesSlice.ts - FIXED VERSION
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { coursesAPI } from '../../services/api';
+
+// FIXED: Complete Course interface matching backend model
+interface Lesson {
+  id: string;
+  title: string;
+  videoUrl?: string;
+  duration: number;
+  order: number;
+  description?: string;
+  resources?: string[];
+}
 
 interface Course {
   _id: string;
   title: string;
   description: string;
   instructor: {
+    id: string;
     name: string;
     avatar?: string;
   };
   category: string;
-  difficulty: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
   duration: number;
   thumbnail: string;
+  videoUrl?: string;
+  materials?: string[];  // ADDED
+  lessons?: Lesson[];    // FIXED: Made optional and added proper type
+  requirements?: string[]; // ADDED
+  tags: string[];
   rating: number;
   ratingCount: number;
   enrolledCount: number;
   price: number;
-  tags: string[];
-  lessons?: any[];
+  isPublished?: boolean; // ADDED
+  createdAt?: string;    // ADDED
+  updatedAt?: string;    // ADDED
+}
+
+// FIXED: Category interface
+interface Category {
+  _id: string;
+  name: string;
+  description: string;
+  icon: string;
+  courseCount: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface CoursesState {
   courses: Course[];
   currentCourse: Course | null;
-  categories: any[];
+  categories: Category[];
   loading: boolean;
   error: string | null;
   pagination: {
@@ -131,3 +162,6 @@ const coursesSlice = createSlice({
 
 export const { clearCurrentCourse, clearError } = coursesSlice.actions;
 export default coursesSlice.reducer;
+
+// Export types for use in other files
+export type { Course, Category, Lesson };
