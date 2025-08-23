@@ -1,4 +1,4 @@
-// frontend/src/App.tsx - UPDATED VERSION
+// frontend/src/App.tsx - UPDATED VERSION (Google Maps Removed)
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
@@ -15,7 +15,6 @@ import Subscription from './pages/Subscription';
 import AuthCallback from './pages/AuthCallback';
 import AuthError from './pages/AuthError';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
-import { LoadScript } from '@react-google-maps/api';
 
 const theme = createTheme({
   palette: {
@@ -73,9 +72,7 @@ const App: React.FC = () => {
     <Provider store={store}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''}>
-          <AppContent />
-        </LoadScript>
+        <AppContent />
       </ThemeProvider>
     </Provider>
   );

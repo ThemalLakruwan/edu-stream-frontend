@@ -12,11 +12,18 @@ export interface Plan {
 }
 
 export interface CurrentSubscription {
+  _id?: string;
+  userId?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
   planType: string;
-  status: 'active' | 'past_due' | 'canceled' | 'unpaid';
+  status: 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete';
   currentPeriodStart: string;
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;
+  trialEnd?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface SubscriptionState {
@@ -36,8 +43,38 @@ const initialState: SubscriptionState = {
 export const fetchPlans = createAsyncThunk('subscription/fetchPlans', async (_, { rejectWithValue }) => {
   try {
     const res = await subscriptionAPI.getPlans();
-    return res.data as Plan[];
+    console.log('Plans API response:', res.data); // Debug log
+    
+    // Handle both array and object responses
+    let plansData = res.data;
+    
+    // If response is an object with plans property, extract it
+    if (plansData && typeof plansData === 'object' && !Array.isArray(plansData)) {
+      if (plansData.plans && Array.isArray(plansData.plans)) {
+        plansData = plansData.plans;
+      } else {
+        // Convert object to array format
+        plansData = Object.entries(plansData).map(([key, value]: [string, any]) => ({
+          id: key,
+          planType: key,
+          name: value.name || `${key} Plan`,
+          price: value.price || 0,
+          currency: value.currency || 'usd',
+          interval: value.interval || 'month',
+          features: value.features || []
+        }));
+      }
+    }
+    
+    // Ensure it's an array
+    if (!Array.isArray(plansData)) {
+      console.error('Plans data is not an array:', plansData);
+      return [];
+    }
+    
+    return plansData as Plan[];
   } catch (e: any) {
+    console.error('Fetch plans error:', e);
     return rejectWithValue(e.response?.data?.error || e.message);
   }
 });
@@ -47,8 +84,19 @@ export const fetchCurrentSubscription = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const res = await subscriptionAPI.getCurrentSubscription();
-      return res.data as CurrentSubscription | null;
+      console.log('Current subscription response:', res.data); // Debug log
+      
+      // Handle both wrapped and direct responses
+      let subscriptionData = res.data;
+      
+      // If response has a subscription property, extract it
+      if (subscriptionData && subscriptionData.subscription !== undefined) {
+        subscriptionData = subscriptionData.subscription;
+      }
+      
+      return subscriptionData as CurrentSubscription | null;
     } catch (e: any) {
+      console.error('Fetch current subscription error:', e);
       return rejectWithValue(e.response?.data?.error || e.message);
     }
   }
@@ -66,6 +114,7 @@ export const createSubscription = createAsyncThunk(
       }
       return res.data;
     } catch (e: any) {
+      console.error('Create subscription error:', e);
       return rejectWithValue(e.response?.data?.error || e.message);
     }
   }
@@ -76,6 +125,7 @@ export const cancelSubscription = createAsyncThunk('subscription/cancel', async 
     const res = await subscriptionAPI.cancelSubscription();
     return res.data;
   } catch (e: any) {
+    console.error('Cancel subscription error:', e);
     return rejectWithValue(e.response?.data?.error || e.message);
   }
 });
@@ -85,6 +135,7 @@ export const resumeSubscription = createAsyncThunk('subscription/resume', async 
     const res = await subscriptionAPI.resumeSubscription();
     return res.data;
   } catch (e: any) {
+    console.error('Resume subscription error:', e);
     return rejectWithValue(e.response?.data?.error || e.message);
   }
 });
@@ -94,6 +145,7 @@ export const changePlan = createAsyncThunk('subscription/changePlan', async (pla
     const res = await subscriptionAPI.changePlan(planType);
     return res.data;
   } catch (e: any) {
+    console.error('Change plan error:', e);
     return rejectWithValue(e.response?.data?.error || e.message);
   }
 });
@@ -117,11 +169,14 @@ const subscriptionSlice = createSlice({
       })
       .addCase(fetchPlans.fulfilled, (s, a) => {
         s.loading = false;
-        s.plans = a.payload;
+        // Ensure we always have an array
+        s.plans = Array.isArray(a.payload) ? a.payload : [];
       })
       .addCase(fetchPlans.rejected, (s, a) => {
         s.loading = false;
         s.error = a.payload as string;
+        // Set empty array on error to prevent map error
+        s.plans = [];
       })
       .addCase(fetchCurrentSubscription.pending, (s) => {
         s.loading = true;
@@ -138,6 +193,7 @@ const subscriptionSlice = createSlice({
       .addCase(cancelSubscription.fulfilled, (s) => {
         if (s.current) {
           s.current.status = 'canceled';
+          s.current.cancelAtPeriodEnd = true;
         }
       })
       .addCase(resumeSubscription.fulfilled, (s) => {
