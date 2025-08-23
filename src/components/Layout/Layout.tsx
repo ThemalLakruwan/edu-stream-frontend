@@ -1,3 +1,4 @@
+// frontend/src/components/Layout/Layout.tsx - FIXED VERSION
 import React from 'react';
 import { AppBar, Toolbar, Typography, Button, Box, Container, Avatar, Menu, MenuItem } from '@mui/material';
 import { useAppSelector, useAppDispatch } from '../../hooks/redux';
@@ -25,8 +26,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     handleMenuClose();
   };
 
+  // FIXED: Updated Google OAuth URL to match API gateway routing
   const handleGoogleLogin = () => {
-    window.location.href = `${process.env.REACT_APP_API_URL}/auth/google`;
+    window.location.href = `${process.env.REACT_APP_API_URL}/api/auth/google`;
   };
 
   return (

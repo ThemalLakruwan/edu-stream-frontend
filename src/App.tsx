@@ -1,3 +1,4 @@
+// frontend/src/App.tsx - UPDATED VERSION
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
@@ -12,6 +13,7 @@ import CourseDetail from './pages/CourseDetail';
 import Dashboard from './pages/Dashboard';
 import Subscription from './pages/Subscription';
 import AuthCallback from './pages/AuthCallback';
+import AuthError from './pages/AuthError';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import { LoadScript } from '@react-google-maps/api';
 
@@ -42,6 +44,7 @@ const AppContent: React.FC = () => {
           <Route path="/courses" element={<Courses />} />
           <Route path="/courses/:id" element={<CourseDetail />} />
           <Route path="/auth/success" element={<AuthCallback />} />
+          <Route path="/auth/error" element={<AuthError />} />
           <Route
             path="/dashboard"
             element={

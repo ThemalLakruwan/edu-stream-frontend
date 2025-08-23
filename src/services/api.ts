@@ -1,3 +1,4 @@
+// frontend/src/services/api.ts - FIXED VERSION
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
@@ -29,31 +30,31 @@ api.interceptors.response.use(
   }
 );
 
-// Auth API
+// Auth API - FIXED endpoints to match API gateway routing
 export const authAPI = {
-  getCurrentUser: () => api.get('/auth/me'),
-  logout: () => api.post('/auth/logout'),
+  getCurrentUser: () => api.get('/api/auth/me'),
+  logout: () => api.post('/api/auth/logout'),
 };
 
 // Courses API
 export const coursesAPI = {
-  getCourses: (params?: any) => api.get('/courses', { params }),
-  getCourseById: (id: string) => api.get(`/courses/${id}`),
-  getCourseContent: (id: string) => api.get(`/courses/${id}/content`),
-  getCategories: () => api.get('/categories'),
+  getCourses: (params?: any) => api.get('/api/courses', { params }),
+  getCourseById: (id: string) => api.get(`/api/courses/${id}`),
+  getCourseContent: (id: string) => api.get(`/api/courses/${id}/content`),
+  getCategories: () => api.get('/api/courses/categories'),
 };
 
 // Subscription API
 export const subscriptionAPI = {
-  getPlans: () => api.get('/subscriptions/plans'),
-  getCurrentSubscription: () => api.get('/subscriptions/current'),
-  createSubscription: (data: any) => api.post('/subscriptions/create', data),
-  cancelSubscription: () => api.post('/subscriptions/cancel'),
-  resumeSubscription: () => api.post('/subscriptions/resume'),
-  changePlan: (planType: string) => api.post('/subscriptions/change-plan', { planType }),
+  getPlans: () => api.get('/api/payments/subscriptions/plans'),
+  getCurrentSubscription: () => api.get('/api/payments/subscriptions/current'),
+  createSubscription: (data: any) => api.post('/api/payments/subscriptions/create', data),
+  cancelSubscription: () => api.post('/api/payments/subscriptions/cancel'),
+  resumeSubscription: () => api.post('/api/payments/subscriptions/resume'),
+  changePlan: (planType: string) => api.post('/api/payments/subscriptions/change-plan', { planType }),
 };
 
 // Payment API
 export const paymentAPI = {
-  getPaymentHistory: (params?: any) => api.get('/payments/history', { params }),
+  getPaymentHistory: (params?: any) => api.get('/api/payments/history', { params }),
 };

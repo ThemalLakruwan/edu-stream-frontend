@@ -1,3 +1,4 @@
+// frontend/src/store/slices/authSlice.ts - FIXED VERSION
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authAPI } from '../../services/api';
 
@@ -25,11 +26,13 @@ const initialState: AuthState = {
   error: null,
 };
 
+// FIXED: Updated Google OAuth URL to match API gateway routing
 export const loginWithGoogle = createAsyncThunk(
   'auth/loginWithGoogle',
   async (_, { rejectWithValue }) => {
     try {
-      window.location.href = `${process.env.REACT_APP_API_URL}/auth/google`;
+      // Use the API gateway route for Google OAuth
+      window.location.href = `${process.env.REACT_APP_API_URL}/api/auth/google`;
     } catch (error: any) {
       return rejectWithValue(error.message);
     }
