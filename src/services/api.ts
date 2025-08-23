@@ -1,7 +1,8 @@
 // frontend/src/services/api.ts - FIXED VERSION
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+// FIXED: Use nginx proxy URL instead of direct service URL
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
 // Create axios instance with interceptors
 const api = axios.create({
@@ -36,25 +37,27 @@ export const authAPI = {
   logout: () => api.post('/api/auth/logout'),
 };
 
-// Courses API
+// Courses API - FIXED endpoints
 export const coursesAPI = {
   getCourses: (params?: any) => api.get('/api/courses', { params }),
   getCourseById: (id: string) => api.get(`/api/courses/${id}`),
   getCourseContent: (id: string) => api.get(`/api/courses/${id}/content`),
-  getCategories: () => api.get('/api/courses/categories'),
+  getCategories: () => api.get('/api/categories'), // FIXED: correct endpoint
 };
 
 // Subscription API
 export const subscriptionAPI = {
-  getPlans: () => api.get('/api/payments/subscriptions/plans'),
-  getCurrentSubscription: () => api.get('/api/payments/subscriptions/current'),
-  createSubscription: (data: any) => api.post('/api/payments/subscriptions/create', data),
-  cancelSubscription: () => api.post('/api/payments/subscriptions/cancel'),
-  resumeSubscription: () => api.post('/api/payments/subscriptions/resume'),
-  changePlan: (planType: string) => api.post('/api/payments/subscriptions/change-plan', { planType }),
+  getPlans: () => api.get('/api/subscriptions/plans'),
+  getCurrentSubscription: () => api.get('/api/subscriptions/current'),
+  createSubscription: (data: any) => api.post('/api/subscriptions/create', data),
+  cancelSubscription: () => api.post('/api/subscriptions/cancel'),
+  resumeSubscription: () => api.post('/api/subscriptions/resume'),
+  changePlan: (planType: string) => api.post('/api/subscriptions/change-plan', { planType }),
 };
 
 // Payment API
 export const paymentAPI = {
   getPaymentHistory: (params?: any) => api.get('/api/payments/history', { params }),
 };
+
+export default api;
