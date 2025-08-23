@@ -1,23 +1,20 @@
+// frontend/src/components/Auth/ProtectedRoute.tsx
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAppSelector } from '../../hooks/redux';
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-}
+const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { isAuthenticated, loading } = useAppSelector((s) => s.auth);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const location = useLocation();
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated, loading } = useAppSelector((state) => state.auth);
+  if (loading) return <div />;
 
-  if (loading) {
-    return <div>Loading...</div>;
+  if (!isAuthenticated && !token) {
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <>{children}</>;
+  return children;
 };
 
 export default ProtectedRoute;

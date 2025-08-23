@@ -23,9 +23,20 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/';
+    const status = error?.response?.status;
+    const url = error?.config?.url || '';
+
+    if (status === 401) {
+      // Only act if it’s a protected API (me, courses, payments, etc.)
+      const isAuthMe = url.includes('/api/auth/me');
+      const isProtected = /\/api\/(auth|courses|payments)/.test(url);
+
+      if (isAuthMe || isProtected) {
+        localStorage.removeItem('token');
+        if (window.location.pathname !== '/') {
+          window.location.replace('/');
+        }
+      }
     }
     return Promise.reject(error);
   }

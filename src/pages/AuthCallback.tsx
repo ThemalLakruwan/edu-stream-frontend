@@ -1,5 +1,5 @@
-// frontend/src/pages/AuthCallback.tsx - FIXED VERSION
-import React, { useEffect, useState } from 'react';
+// frontend/src/pages/AuthCallback.tsx
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, CircularProgress, Typography, Alert } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppDispatch } from '../hooks/redux';
@@ -9,46 +9,57 @@ const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
+
   const [error, setError] = useState<string | null>(null);
+  const ranRef = useRef(false); // guard against double-invoke in React StrictMode
 
   useEffect(() => {
+    if (ranRef.current) return;
+    ranRef.current = true;
+
     const handleCallback = async () => {
       try {
         const params = new URLSearchParams(location.search);
         const token = params.get('token');
         const errorParam = params.get('error');
-        
+
+        // Clean the URL (avoid leaving token in the browser history)
+        try {
+          const cleanUrl = `${window.location.pathname}`;
+          window.history.replaceState(null, '', cleanUrl);
+        } catch {
+          /* no-op */
+        }
+
         if (errorParam) {
           setError('Authentication failed. Please try again.');
-          setTimeout(() => navigate('/', { replace: true }), 3000);
+          setTimeout(() => navigate('/', { replace: true }), 2500);
           return;
         }
-        
-        if (token) {
-          console.log('Token received:', token.substring(0, 20) + '...');
-          
-          // Set token in Redux store and localStorage
-          dispatch(setToken(token));
-          
-          // Get user data
-          try {
-            await dispatch(getCurrentUser()).unwrap();
-            console.log('User data retrieved successfully');
-            navigate('/dashboard', { replace: true });
-          } catch (userError) {
-            console.error('Failed to get user data:', userError);
-            setError('Failed to retrieve user information. Please try signing in again.');
-            setTimeout(() => navigate('/', { replace: true }), 3000);
-          }
-        } else {
-          console.log('No token found in callback URL');
+
+        if (!token) {
           setError('No authentication token received. Please try again.');
-          setTimeout(() => navigate('/', { replace: true }), 3000);
+          setTimeout(() => navigate('/', { replace: true }), 2500);
+          return;
         }
+
+        // Persist token immediately to avoid race conditions
+        try {
+          localStorage.setItem('token', token);
+        } catch {
+          /* Fallback to Redux-only if storage is blocked */
+        }
+
+        // Set token in Redux (keeps app state consistent)
+        dispatch(setToken(token));
+
+        // Fetch the current user before navigating to protected routes
+        await dispatch(getCurrentUser()).unwrap();
+        navigate('/dashboard', { replace: true });
       } catch (err) {
         console.error('Auth callback error:', err);
         setError('Authentication failed. Please try again.');
-        setTimeout(() => navigate('/', { replace: true }), 3000);
+        setTimeout(() => navigate('/', { replace: true }), 2500);
       }
     };
 
