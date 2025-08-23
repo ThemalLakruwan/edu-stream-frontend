@@ -15,6 +15,8 @@ import Subscription from './pages/Subscription';
 import AuthCallback from './pages/AuthCallback';
 import AuthError from './pages/AuthError';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const theme = createTheme({
   palette: {
@@ -27,6 +29,27 @@ const theme = createTheme({
     },
   },
 });
+
+const AuthSuccess: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const token = urlParams.get('token');
+    
+    if (token) {
+      localStorage.setItem('token', token);
+      console.log('Token stored:', token);
+      navigate('/dashboard'); // Redirect to dashboard
+    } else {
+      console.error('No token received');
+      navigate('/'); // Redirect to home
+    }
+  }, [location, navigate]);
+
+  return <div>Processing authentication...</div>;
+};
 
 const AppContent: React.FC = () => {
   const { initialized } = useAuth();
@@ -44,6 +67,7 @@ const AppContent: React.FC = () => {
           <Route path="/courses/:id" element={<CourseDetail />} />
           <Route path="/auth/success" element={<AuthCallback />} />
           <Route path="/auth/error" element={<AuthError />} />
+          <Route path="/auth/success" element={<AuthSuccess />} />
           <Route
             path="/dashboard"
             element={
