@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Grid from '@mui/material/GridLegacy';
 import {
   Box,
@@ -24,23 +24,64 @@ import {
   cancelSubscription,
   resumeSubscription,
   changePlan,
+  clearClientSecret,
 } from '../store/slices/subscriptionSlice';
+import PaymentModal from '../components/PaymentModal';
 
 const Subscription: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { plans, current, loading, error } = useAppSelector((s) => s.subscription);
+  const { plans, current, loading, error, clientSecret, processingPayment } = useAppSelector((s) => s.subscription);
+  
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<string>('');
 
   useEffect(() => {
     dispatch(fetchPlans());
     dispatch(fetchCurrentSubscription());
   }, [dispatch]);
 
-  const handleSelect = (planType: string) => dispatch(createSubscription(planType));
-  const handleCancel = () => dispatch(cancelSubscription()).then(() => dispatch(fetchCurrentSubscription()));
-  const handleResume = () => dispatch(resumeSubscription()).then(() => dispatch(fetchCurrentSubscription()));
-  const handleChange = (planType: string) => dispatch(changePlan(planType)).then(() => dispatch(fetchCurrentSubscription()));
+  console.log('Subscription state:', { 
+    plans: plans?.length, 
+    current: current ? { planType: current.planType, status: current.status } : null, 
+    loading, 
+    error 
+  });
 
-  // Debug logging
+  const handleSelectPlan = async (planType: string) => {
+    console.log('Plan selected:', planType);
+    setSelectedPlan(planType);
+    
+    try {
+      const result = await dispatch(createSubscription(planType));
+      if (createSubscription.fulfilled.match(result)) {
+        setPaymentModalOpen(true);
+      }
+    } catch (error) {
+      console.error('Failed to create subscription:', error);
+    }
+  };
+
+  const handlePaymentSuccess = () => {
+    setPaymentModalOpen(false);
+    dispatch(clearClientSecret());
+    dispatch(fetchCurrentSubscription());
+  };
+
+  const handleCancel = async () => {
+    await dispatch(cancelSubscription());
+    dispatch(fetchCurrentSubscription());
+  };
+
+  const handleResume = async () => {
+    await dispatch(resumeSubscription());
+    dispatch(fetchCurrentSubscription());
+  };
+
+  const handleChangePlan = async (planType: string) => {
+    await dispatch(changePlan(planType));
+    dispatch(fetchCurrentSubscription());
+  };
+
   console.log('Subscription state:', { plans, current, loading, error });
 
   if (loading && (!plans || plans.length === 0)) {
@@ -51,12 +92,14 @@ const Subscription: React.FC = () => {
     );
   }
 
+  const selectedPlanData = plans.find(p => p.planType === selectedPlan);
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>Manage Subscription</Typography>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {current && (
+      {current && current.planType && current.status && (
         <Alert severity={current.status === 'active' ? 'success' : 'warning'} sx={{ mb: 3 }}>
           Current plan: <b>{current.planType}</b> — Status: <Chip size="small" label={current.status} sx={{ ml: 1 }} />
           {current.cancelAtPeriodEnd && (
@@ -67,7 +110,6 @@ const Subscription: React.FC = () => {
         </Alert>
       )}
 
-      {/* Ensure plans is an array before mapping */}
       <Grid container spacing={3}>
         {Array.isArray(plans) && plans.length > 0 ? (
           plans.map((p) => (
@@ -90,14 +132,15 @@ const Subscription: React.FC = () => {
                   </List>
                 </CardContent>
                 <CardActions sx={{ p: 2, pt: 0 }}>
-                  {!current ? (
+                  {/* FIXED: Better condition checking for current subscription */}
+                  {!current || !current.planType ? (
                     <Button 
                       fullWidth 
                       variant="contained" 
-                      disabled={loading} 
-                      onClick={() => handleSelect(p.planType)}
+                      disabled={processingPayment} 
+                      onClick={() => handleSelectPlan(p.planType)}
                     >
-                      Choose {p.planType || 'Plan'}
+                      {processingPayment ? <CircularProgress size={24} /> : `Choose ${p.planType || 'Plan'}`}
                     </Button>
                   ) : current.planType === p.planType ? (
                     current.status === 'active' && !current.cancelAtPeriodEnd ? (
@@ -127,7 +170,7 @@ const Subscription: React.FC = () => {
                       fullWidth 
                       variant="outlined" 
                       disabled={loading || current.status !== 'active'} 
-                      onClick={() => handleChange(p.planType)}
+                      onClick={() => handleChangePlan(p.planType)}
                     >
                       Switch to {p.planType || 'Plan'}
                     </Button>
@@ -144,6 +187,15 @@ const Subscription: React.FC = () => {
           </Grid>
         )}
       </Grid>
+
+      <PaymentModal
+        open={paymentModalOpen}
+        onClose={() => setPaymentModalOpen(false)}
+        clientSecret={clientSecret}
+        onSuccess={handlePaymentSuccess}
+        planName={selectedPlanData?.name || 'Plan'}
+        error={error || undefined}
+      />
     </Box>
   );
 };

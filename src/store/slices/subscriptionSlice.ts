@@ -1,36 +1,34 @@
-import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { subscriptionAPI } from '../../services/api';
 
-export interface Plan {
+interface Plan {
   id: string;
+  planType: string;
   name: string;
-  planType: 'basic' | 'premium' | 'enterprise' | string;
   price: number;
   currency: string;
-  interval: 'month' | 'year' | string;
-  features?: string[];
+  interval: string;
+  features: string[];
 }
 
-export interface CurrentSubscription {
-  _id?: string;
-  userId?: string;
-  stripeCustomerId?: string;
-  stripeSubscriptionId?: string;
+interface Subscription {
+  _id: string;
+  userId: string;
   planType: string;
-  status: 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete';
+  status: string;
   currentPeriodStart: string;
   currentPeriodEnd: string;
-  cancelAtPeriodEnd: boolean;
+  cancelAtPeriodEnd?: boolean;
   trialEnd?: string;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 interface SubscriptionState {
   plans: Plan[];
-  current: CurrentSubscription | null;
+  current: Subscription | null;
   loading: boolean;
   error: string | null;
+  clientSecret: string | null;
+  processingPayment: boolean;
 }
 
 const initialState: SubscriptionState = {
@@ -38,177 +36,175 @@ const initialState: SubscriptionState = {
   current: null,
   loading: false,
   error: null,
+  clientSecret: null,
+  processingPayment: false,
 };
 
-export const fetchPlans = createAsyncThunk('subscription/fetchPlans', async (_, { rejectWithValue }) => {
-  try {
-    const res = await subscriptionAPI.getPlans();
-    console.log('Plans API response:', res.data); // Debug log
-    
-    // Handle both array and object responses
-    let plansData = res.data;
-    
-    // If response is an object with plans property, extract it
-    if (plansData && typeof plansData === 'object' && !Array.isArray(plansData)) {
-      if (plansData.plans && Array.isArray(plansData.plans)) {
-        plansData = plansData.plans;
-      } else {
-        // Convert object to array format
-        plansData = Object.entries(plansData).map(([key, value]: [string, any]) => ({
-          id: key,
-          planType: key,
-          name: value.name || `${key} Plan`,
-          price: value.price || 0,
-          currency: value.currency || 'usd',
-          interval: value.interval || 'month',
-          features: value.features || []
-        }));
-      }
+// Fetch available plans
+export const fetchPlans = createAsyncThunk(
+  'subscription/fetchPlans',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await subscriptionAPI.getPlans();
+      console.log('Plans response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Fetch plans error:', error);
+      return rejectWithValue(error.response?.data?.error || 'Failed to fetch plans');
     }
-    
-    // Ensure it's an array
-    if (!Array.isArray(plansData)) {
-      console.error('Plans data is not an array:', plansData);
-      return [];
-    }
-    
-    return plansData as Plan[];
-  } catch (e: any) {
-    console.error('Fetch plans error:', e);
-    return rejectWithValue(e.response?.data?.error || e.message);
   }
-});
+);
 
+// Fetch current subscription
 export const fetchCurrentSubscription = createAsyncThunk(
   'subscription/fetchCurrent',
   async (_, { rejectWithValue }) => {
     try {
-      const res = await subscriptionAPI.getCurrentSubscription();
-      console.log('Current subscription response:', res.data); // Debug log
-      
-      // Handle both wrapped and direct responses
-      let subscriptionData = res.data;
-      
-      // If response has a subscription property, extract it
-      if (subscriptionData && subscriptionData.subscription !== undefined) {
-        subscriptionData = subscriptionData.subscription;
-      }
-      
-      return subscriptionData as CurrentSubscription | null;
-    } catch (e: any) {
-      console.error('Fetch current subscription error:', e);
-      return rejectWithValue(e.response?.data?.error || e.message);
+      const response = await subscriptionAPI.getCurrentSubscription();
+      console.log('Current subscription response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Fetch current subscription error:', error);
+      return rejectWithValue(error.response?.data?.error || 'Failed to fetch subscription');
     }
   }
 );
 
+// Create subscription - FIXED with proper error handling
 export const createSubscription = createAsyncThunk(
   'subscription/create',
   async (planType: string, { rejectWithValue }) => {
     try {
-      const res = await subscriptionAPI.createSubscription({ planType });
-      // If backend returns a checkout URL, redirect immediately
-      const url = (res.data?.checkoutUrl || res.data?.url) as string | undefined;
-      if (url) {
-        window.location.href = url;
-      }
-      return res.data;
-    } catch (e: any) {
-      console.error('Create subscription error:', e);
-      return rejectWithValue(e.response?.data?.error || e.message);
+      console.log('Creating subscription for plan:', planType);
+     
+      // First, create the subscription intent
+      const response = await subscriptionAPI.createSubscription({
+        planType,
+        // We'll handle payment method separately
+      });
+     
+      console.log('Create subscription response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Create subscription error:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to create subscription';
+      return rejectWithValue(errorMessage);
     }
   }
 );
 
-export const cancelSubscription = createAsyncThunk('subscription/cancel', async (_, { rejectWithValue }) => {
-  try {
-    const res = await subscriptionAPI.cancelSubscription();
-    return res.data;
-  } catch (e: any) {
-    console.error('Cancel subscription error:', e);
-    return rejectWithValue(e.response?.data?.error || e.message);
+// Cancel subscription
+export const cancelSubscription = createAsyncThunk(
+  'subscription/cancel',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await subscriptionAPI.cancelSubscription();
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.error || 'Failed to cancel subscription');
+    }
   }
-});
+);
 
-export const resumeSubscription = createAsyncThunk('subscription/resume', async (_, { rejectWithValue }) => {
-  try {
-    const res = await subscriptionAPI.resumeSubscription();
-    return res.data;
-  } catch (e: any) {
-    console.error('Resume subscription error:', e);
-    return rejectWithValue(e.response?.data?.error || e.message);
+// Resume subscription
+export const resumeSubscription = createAsyncThunk(
+  'subscription/resume',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await subscriptionAPI.resumeSubscription();
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.error || 'Failed to resume subscription');
+    }
   }
-});
+);
 
-export const changePlan = createAsyncThunk('subscription/changePlan', async (planType: string, { rejectWithValue }) => {
-  try {
-    const res = await subscriptionAPI.changePlan(planType);
-    return res.data;
-  } catch (e: any) {
-    console.error('Change plan error:', e);
-    return rejectWithValue(e.response?.data?.error || e.message);
+// Change plan
+export const changePlan = createAsyncThunk(
+  'subscription/changePlan',
+  async (planType: string, { rejectWithValue }) => {
+    try {
+      const response = await subscriptionAPI.changePlan(planType);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.error || 'Failed to change plan');
+    }
   }
-});
+);
 
 const subscriptionSlice = createSlice({
   name: 'subscription',
   initialState,
   reducers: {
-    clearSubscriptionError: (state) => {
+    clearError: (state) => {
       state.error = null;
     },
-    setPlans: (state, action: PayloadAction<Plan[]>) => {
-      state.plans = action.payload;
+    setClientSecret: (state, action) => {
+      state.clientSecret = action.payload;
+    },
+    clearClientSecret: (state) => {
+      state.clientSecret = null;
     },
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchPlans.pending, (s) => {
-        s.loading = true;
-        s.error = null;
+      // Fetch plans
+      .addCase(fetchPlans.pending, (state) => {
+        state.loading = true;
+        state.error = null;
       })
-      .addCase(fetchPlans.fulfilled, (s, a) => {
-        s.loading = false;
-        // Ensure we always have an array
-        s.plans = Array.isArray(a.payload) ? a.payload : [];
+      .addCase(fetchPlans.fulfilled, (state, action) => {
+        state.loading = false;
+        state.plans = Array.isArray(action.payload) ? action.payload : [];
       })
-      .addCase(fetchPlans.rejected, (s, a) => {
-        s.loading = false;
-        s.error = a.payload as string;
-        // Set empty array on error to prevent map error
-        s.plans = [];
+      .addCase(fetchPlans.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       })
-      .addCase(fetchCurrentSubscription.pending, (s) => {
-        s.loading = true;
-        s.error = null;
+     
+      // Fetch current subscription
+      .addCase(fetchCurrentSubscription.pending, (state) => {
+        state.loading = true;
+        state.error = null;
       })
-      .addCase(fetchCurrentSubscription.fulfilled, (s, a) => {
-        s.loading = false;
-        s.current = a.payload;
+      .addCase(fetchCurrentSubscription.fulfilled, (state, action) => {
+        state.loading = false;
+        state.current = action.payload || null;
       })
-      .addCase(fetchCurrentSubscription.rejected, (s, a) => {
-        s.loading = false;
-        s.error = a.payload as string;
+      .addCase(fetchCurrentSubscription.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       })
-      .addCase(cancelSubscription.fulfilled, (s) => {
-        if (s.current) {
-          s.current.status = 'canceled';
-          s.current.cancelAtPeriodEnd = true;
+     
+      // Create subscription
+      .addCase(createSubscription.pending, (state) => {
+        state.processingPayment = true;
+        state.error = null;
+      })
+      .addCase(createSubscription.fulfilled, (state, action) => {
+        state.processingPayment = false;
+        state.clientSecret = action.payload.clientSecret;
+      })
+      .addCase(createSubscription.rejected, (state, action) => {
+        state.processingPayment = false;
+        state.error = action.payload as string;
+      })
+     
+      // Cancel subscription
+      .addCase(cancelSubscription.fulfilled, (state) => {
+        if (state.current) {
+          state.current.cancelAtPeriodEnd = true;
         }
       })
-      .addCase(resumeSubscription.fulfilled, (s) => {
-        if (s.current) {
-          s.current.status = 'active';
-          s.current.cancelAtPeriodEnd = false;
-        }
-      })
-      .addCase(changePlan.fulfilled, (s, a) => {
-        if (s.current && a.payload?.planType) {
-          s.current.planType = a.payload.planType;
+     
+      // Resume subscription
+      .addCase(resumeSubscription.fulfilled, (state) => {
+        if (state.current) {
+          state.current.cancelAtPeriodEnd = false;
         }
       });
   },
 });
 
-export const { clearSubscriptionError, setPlans } = subscriptionSlice.actions;
+export const { clearError, setClientSecret, clearClientSecret } = subscriptionSlice.actions;
 export default subscriptionSlice.reducer;
