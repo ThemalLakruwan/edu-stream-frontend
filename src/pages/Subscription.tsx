@@ -1,88 +1,71 @@
-import React, { useEffect, useState } from 'react';
+// frontend/src/pages/Subscription.tsx
+import React, { useEffect, useState, useMemo } from 'react';
 import Grid from '@mui/material/GridLegacy';
 import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  CardActions,
-  Button,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Chip,
-  Alert,
-  CircularProgress,
+  Box, Typography, Card, CardContent, CardActions, Button,
+  List, ListItem, ListItemIcon, ListItemText, Chip, Alert,
+  CircularProgress
 } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import {
   fetchPlans,
   fetchCurrentSubscription,
-  createSubscription,
   cancelSubscription,
   resumeSubscription,
-  changePlan,
-  clearClientSecret,
+  changePlan
 } from '../store/slices/subscriptionSlice';
 import PaymentModal from '../components/PaymentModal';
 
+const ALLOW_SWITCH_STATES = new Set(['active', 'trialing', 'past_due']);
+
 const Subscription: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { plans, current, loading, error, clientSecret, processingPayment } = useAppSelector((s) => s.subscription);
-  
+  const { plans, current, loading, error } = useAppSelector((s) => s.subscription);
+
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string>('');
+  const [localLoading, setLocalLoading] = useState(false);
 
   useEffect(() => {
     dispatch(fetchPlans());
     dispatch(fetchCurrentSubscription());
   }, [dispatch]);
 
-  console.log('Subscription state:', { 
-    plans: plans?.length, 
-    current: current ? { planType: current.planType, status: current.status } : null, 
-    loading, 
-    error 
-  });
+  const selectedPlanData = useMemo(
+    () => plans.find(p => p.planType === selectedPlan),
+    [plans, selectedPlan]
+  );
 
-  const handleSelectPlan = async (planType: string) => {
-    console.log('Plan selected:', planType);
+  const handleSelectPlan = (planType: string) => {
     setSelectedPlan(planType);
-    
-    try {
-      const result = await dispatch(createSubscription(planType));
-      if (createSubscription.fulfilled.match(result)) {
-        setPaymentModalOpen(true);
-      }
-    } catch (error) {
-      console.error('Failed to create subscription:', error);
-    }
+    setPaymentModalOpen(true);   // open card form first (no subscription yet)
   };
 
   const handlePaymentSuccess = () => {
-    setPaymentModalOpen(false);
-    dispatch(clearClientSecret());
     dispatch(fetchCurrentSubscription());
   };
 
   const handleCancel = async () => {
+    setLocalLoading(true);
     await dispatch(cancelSubscription());
-    dispatch(fetchCurrentSubscription());
+    await dispatch(fetchCurrentSubscription());
+    setLocalLoading(false);
   };
 
   const handleResume = async () => {
+    setLocalLoading(true);
     await dispatch(resumeSubscription());
-    dispatch(fetchCurrentSubscription());
+    await dispatch(fetchCurrentSubscription());
+    setLocalLoading(false);
   };
 
   const handleChangePlan = async (planType: string) => {
+    setLocalLoading(true);
     await dispatch(changePlan(planType));
-    dispatch(fetchCurrentSubscription());
+    await dispatch(fetchCurrentSubscription());
+    setLocalLoading(false);
   };
-
-  console.log('Subscription state:', { plans, current, loading, error });
 
   if (loading && (!plans || plans.length === 0)) {
     return (
@@ -92,16 +75,18 @@ const Subscription: React.FC = () => {
     );
   }
 
-  const selectedPlanData = plans.find(p => p.planType === selectedPlan);
-
   return (
     <Box>
       <Typography variant="h4" gutterBottom>Manage Subscription</Typography>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       {current && current.planType && current.status && (
-        <Alert severity={current.status === 'active' ? 'success' : 'warning'} sx={{ mb: 3 }}>
-          Current plan: <b>{current.planType}</b> — Status: <Chip size="small" label={current.status} sx={{ ml: 1 }} />
+        <Alert
+          severity={current.status === 'active' ? 'success' : (current.status === 'trialing' ? 'info' : 'warning')}
+          sx={{ mb: 3 }}
+        >
+          Current plan: <b>{current.planType}</b> — Status:
+          <Chip size="small" label={current.status} sx={{ ml: 1 }} />
           {current.cancelAtPeriodEnd && (
             <Typography variant="body2" sx={{ mt: 1 }}>
               Will be cancelled on {new Date(current.currentPeriodEnd).toLocaleDateString()}
@@ -112,78 +97,92 @@ const Subscription: React.FC = () => {
 
       <Grid container spacing={3}>
         {Array.isArray(plans) && plans.length > 0 ? (
-          plans.map((p) => (
-            <Grid item xs={12} md={4} key={p.id || p.planType}>
-              <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ flex: 1 }}>
-                  <Typography variant="h6" gutterBottom>{p.name || `${p.planType} Plan`}</Typography>
-                  <Typography variant="h4" sx={{ my: 2 }}>
-                    ${p.price?.toFixed(2) || '0.00'} / {p.interval || 'month'}
-                  </Typography>
-                  <List dense>
-                    {(p.features || ['Access to courses', 'Customer support']).map((f, idx) => (
-                      <ListItem key={idx} disableGutters>
-                        <ListItemIcon>
-                          <CheckIcon color="primary" />
-                        </ListItemIcon>
-                        <ListItemText primary={f} />
-                      </ListItem>
-                    ))}
-                  </List>
-                </CardContent>
-                <CardActions sx={{ p: 2, pt: 0 }}>
-                  {/* FIXED: Better condition checking for current subscription */}
-                  {!current || !current.planType ? (
-                    <Button 
-                      fullWidth 
-                      variant="contained" 
-                      disabled={processingPayment} 
-                      onClick={() => handleSelectPlan(p.planType)}
-                    >
-                      {processingPayment ? <CircularProgress size={24} /> : `Choose ${p.planType || 'Plan'}`}
-                    </Button>
-                  ) : current.planType === p.planType ? (
-                    current.status === 'active' && !current.cancelAtPeriodEnd ? (
-                      <Button 
-                        fullWidth 
-                        variant="outlined" 
-                        color="warning" 
-                        disabled={loading} 
-                        onClick={handleCancel}
-                      >
-                        Cancel at period end
-                      </Button>
-                    ) : current.cancelAtPeriodEnd ? (
-                      <Button 
-                        fullWidth 
-                        variant="contained" 
-                        disabled={loading} 
-                        onClick={handleResume}
-                      >
-                        Resume
-                      </Button>
-                    ) : (
-                      <Chip label={`Current Plan (${current.status})`} variant="outlined" />
-                    )
-                  ) : (
-                    <Button 
-                      fullWidth 
-                      variant="outlined" 
-                      disabled={loading || current.status !== 'active'} 
-                      onClick={() => handleChangePlan(p.planType)}
-                    >
-                      Switch to {p.planType || 'Plan'}
-                    </Button>
+          plans.map((p) => {
+            const isCurrent = current?.planType === p.planType;
+            const canSwitch = current && ALLOW_SWITCH_STATES.has(current.status);
+            return (
+              <Grid item xs={12} md={4} key={p.id || p.planType}>
+                <Card
+                  variant="outlined"
+                  sx={{
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    borderWidth: 2,
+                    borderColor: isCurrent ? 'primary.main' : 'divider',
+                    position: 'relative'
+                  }}
+                >
+                  {isCurrent && (
+                    <Chip
+                      label="Current plan"
+                      color="success"
+                      size="small"
+                      sx={{ position: 'absolute', top: 12, right: 12 }}
+                    />
                   )}
-                </CardActions>
-              </Card>
-            </Grid>
-          ))
+                  <CardContent sx={{ flex: 1 }}>
+                    <Typography variant="h6" gutterBottom>{p.name || `${p.planType} Plan`}</Typography>
+                    <Typography variant="h4" sx={{ my: 2 }}>
+                      ${p.price?.toFixed(2) || '0.00'} / {p.interval || 'month'}
+                    </Typography>
+                    <List dense>
+                      {(p.features || ['Access to courses', 'Customer support']).map((f, idx) => (
+                        <ListItem key={idx} disableGutters>
+                          <ListItemIcon><CheckIcon color="primary" /></ListItemIcon>
+                          <ListItemText primary={f} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </CardContent>
+
+                  <CardActions sx={{ p: 2, pt: 0 }}>
+                    {!current ? (
+                      // No subscription yet → choose plan
+                      <Button fullWidth variant="contained" onClick={() => handleSelectPlan(p.planType)}>
+                        Choose {p.planType}
+                      </Button>
+                    ) : isCurrent ? (
+                      // Current plan → cancel/resume
+                      current.status !== 'canceled' && !current.cancelAtPeriodEnd ? (
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          color="warning"
+                          disabled={localLoading}
+                          onClick={handleCancel}
+                        >
+                          Cancel at period end
+                        </Button>
+                      ) : (
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          disabled={localLoading}
+                          onClick={handleResume}
+                        >
+                          Resume
+                        </Button>
+                      )
+                    ) : (
+                      // Other plans → allow switch for active/trialing/past_due
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        disabled={localLoading || !canSwitch}
+                        onClick={() => handleChangePlan(p.planType)}
+                      >
+                        Switch to {p.planType}
+                      </Button>
+                    )}
+                  </CardActions>
+                </Card>
+              </Grid>
+            );
+          })
         ) : (
           <Grid item xs={12}>
-            <Alert severity="info">
-              No subscription plans available at the moment. Please try again later.
-            </Alert>
+            <Alert severity="info">No subscription plans available at the moment. Please try again later.</Alert>
           </Grid>
         )}
       </Grid>
@@ -191,10 +190,9 @@ const Subscription: React.FC = () => {
       <PaymentModal
         open={paymentModalOpen}
         onClose={() => setPaymentModalOpen(false)}
-        clientSecret={clientSecret}
-        onSuccess={handlePaymentSuccess}
+        planType={selectedPlan}
         planName={selectedPlanData?.name || 'Plan'}
-        error={error || undefined}
+        onSuccess={handlePaymentSuccess}
       />
     </Box>
   );

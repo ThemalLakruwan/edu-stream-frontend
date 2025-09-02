@@ -1,63 +1,79 @@
+// frontend/src/components/PaymentModal.tsx
 import React, { useState } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  CircularProgress,
-  Alert,
-  Box,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Button, CircularProgress, Alert, Box
 } from '@mui/material';
 import { loadStripe } from '@stripe/stripe-js';
 import {
-  Elements,
-  CardElement,
-  useStripe,
-  useElements,
+  Elements, CardElement, useStripe, useElements
 } from '@stripe/react-stripe-js';
+import { subscriptionAPI } from '../services/api';
 
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY!);
 
 interface PaymentFormProps {
-  clientSecret: string;
+  planType: string;
   onSuccess: () => void;
-  onError: (error: string) => void;
+  onError: (msg: string) => void;
 }
 
-const PaymentForm: React.FC<PaymentFormProps> = ({ clientSecret, onSuccess, onError }) => {
+const PaymentForm: React.FC<PaymentFormProps> = ({ planType, onSuccess, onError }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    if (!stripe || !elements) {
-      return;
-    }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
 
     const cardElement = elements.getElement(CardElement);
-    if (!cardElement) {
-      return;
-    }
+    if (!cardElement) return;
 
     setProcessing(true);
+    setError(null);
 
     try {
-      const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-          card: cardElement,
-        },
+      // 1) Create a PaymentMethod from the card input
+      const { error: pmErr, paymentMethod } = await stripe.createPaymentMethod({
+        type: 'card',
+        card: cardElement,
       });
 
-      if (error) {
-        onError(error.message || 'Payment failed');
-      } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-        onSuccess();
+      if (pmErr || !paymentMethod) {
+        const msg = pmErr?.message || 'Failed to create payment method.';
+        setError(msg); onError(msg); setProcessing(false); return;
       }
+
+      // 2) Create the subscription (server attaches PM and may return a clientSecret)
+      const resp = await subscriptionAPI.createSubscription({
+        planType,
+        paymentMethodId: paymentMethod.id,
+      });
+
+      const { clientSecret, status } = resp.data || {};
+
+      // 3) If Stripe needs confirmation (incomplete + invoice PI), confirm it here
+      if (clientSecret) {
+        const { error: confirmErr, paymentIntent } = await stripe.confirmCardPayment(clientSecret);
+        if (confirmErr) {
+          const msg = confirmErr.message || 'Payment confirmation failed.';
+          setError(msg); onError(msg); setProcessing(false); return;
+        }
+        if (paymentIntent?.status !== 'succeeded') {
+          const msg = 'Payment not completed. Please try again.';
+          setError(msg); onError(msg); setProcessing(false); return;
+        }
+      } else {
+        // Trial flow: no immediate charge; PM is saved for future billing
+        // status is typically 'trialing'
+      }
+
+      onSuccess();
     } catch (err: any) {
-      onError(err.message || 'Payment failed');
+      const msg = err?.response?.data?.error || err?.message || 'Payment failed.';
+      setError(msg); onError(msg);
     } finally {
       setProcessing(false);
     }
@@ -65,6 +81,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ clientSecret, onSuccess, onEr
 
   return (
     <form onSubmit={handleSubmit}>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       <Box sx={{ mb: 3 }}>
         <CardElement
           options={{
@@ -72,22 +89,15 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ clientSecret, onSuccess, onEr
               base: {
                 fontSize: '16px',
                 color: '#424770',
-                '::placeholder': {
-                  color: '#aab7c4',
-                },
+                '::placeholder': { color: '#aab7c4' },
               },
             },
           }}
         />
       </Box>
       <DialogActions>
-        <Button 
-          type="submit" 
-          variant="contained" 
-          disabled={!stripe || processing}
-          fullWidth
-        >
-          {processing ? <CircularProgress size={24} /> : 'Complete Payment'}
+        <Button type="submit" variant="contained" disabled={!stripe || processing} fullWidth>
+          {processing ? <CircularProgress size={24} /> : 'Start Subscription'}
         </Button>
       </DialogActions>
     </form>
@@ -97,43 +107,25 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ clientSecret, onSuccess, onEr
 interface PaymentModalProps {
   open: boolean;
   onClose: () => void;
-  clientSecret: string | null;
-  onSuccess: () => void;
+  planType: string;
   planName: string;
-  error?: string;
+  onSuccess: () => void;
 }
 
 const PaymentModal: React.FC<PaymentModalProps> = ({
-  open,
-  onClose,
-  clientSecret,
-  onSuccess,
-  planName,
-  error,
+  open, onClose, planType, planName, onSuccess
 }) => {
-  const handleSuccess = () => {
-    onSuccess();
-    onClose();
-  };
-
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Complete Your {planName} Subscription</DialogTitle>
+      <DialogTitle>Subscribe to {planName}</DialogTitle>
       <DialogContent>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-        {clientSecret && (
-          <Elements stripe={stripePromise}>
-            <PaymentForm
-              clientSecret={clientSecret}
-              onSuccess={handleSuccess}
-              onError={(err) => console.error('Payment error:', err)}
-            />
-          </Elements>
-        )}
+        <Elements stripe={stripePromise}>
+          <PaymentForm
+            planType={planType}
+            onSuccess={() => { onSuccess(); onClose(); }}
+            onError={() => {}}
+          />
+        </Elements>
       </DialogContent>
     </Dialog>
   );

@@ -215,7 +215,7 @@ const CourseDetail: React.FC = () => {
                 sx={{ py: 1.5 }}
                 disabled // Enable when enrollment system is implemented
               >
-                Enroll Now - ${course.price}
+                Enroll Now
               </Button>
             </Stack>
 
