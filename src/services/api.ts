@@ -71,4 +71,28 @@ export const paymentAPI = {
   getPaymentHistory: (params?: any) => api.get('/api/payments/history', { params }),
 };
 
+export const adminAPI = {
+  listAdmins: (params?: any) => api.get('/api/auth/admins', { params }),
+  grantAdmin: (email: string) => api.post('/api/auth/admins/grant', { email }),
+  revokeAdmin: (userId: string) => api.post('/api/auth/admins/revoke', { userId }),
+  listUsers: (params?: any) => api.get('/api/auth/users', { params }),
+};
+
+export const enrollmentAPI = {
+  myEnrollments: () => api.get('/api/enrollments/me'),
+  enroll: (courseId: string) => api.post(`/api/enrollments/${courseId}/enroll`),
+  unenroll: (courseId: string) => api.delete(`/api/enrollments/${courseId}/enroll`),
+  summary: () => api.get('/api/enrollments/summary'),
+};
+
+// For admin courses CRUD (already have Course routes, add helpers)
+export const adminCoursesAPI = {
+  listAll: (params?: any) => api.get('/api/courses/admin', { params }),
+  create: (form: FormData) => api.post('/api/courses', form, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  update: (id: string, body: any) => api.put(`/api/courses/${id}`, body),
+  remove: (id: string) => api.delete(`/api/courses/${id}`),
+  publish: (id: string) => api.post(`/api/courses/${id}/publish`),
+  unpublish: (id: string) => api.post(`/api/courses/${id}/unpublish`),
+};
+
 export default api;
