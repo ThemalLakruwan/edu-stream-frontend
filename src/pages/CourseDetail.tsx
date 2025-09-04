@@ -17,55 +17,64 @@ import {
 } from '@mui/material';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { fetchCourseById } from '../store/slices/coursesSlice';
+import { fetchCurrentSubscription } from '../store/slices/subscriptionSlice';
+import { fetchMyEnrollments, enrollToCourse } from '../store/slices/enrollmentSlice';
+
+const ALLOW_SUB_STATES = new Set(['active','trialing','past_due']);
 
 const CourseDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const dispatch = useAppDispatch();
+
   const { currentCourse: course, loading, error } = useAppSelector((s) => s.courses);
+  const { current: subscription } = useAppSelector((s) => s.subscription);
+  const { mineIds, enrolling } = useAppSelector((s) => s.enrollments);
 
   useEffect(() => {
     if (id) dispatch(fetchCourseById(id));
+    // ✅ ensure we have both subscription + enrollments in store
+    dispatch(fetchCurrentSubscription());
+    dispatch(fetchMyEnrollments());
   }, [dispatch, id]);
 
   if (loading || !course) return <Typography>{loading ? 'Loading…' : error || 'Course not found.'}</Typography>;
 
-  // FIXED: Create a copy of the lessons array before sorting
   const sortedLessons = course.lessons ? [...course.lessons].sort((a, b) => a.order - b.order) : [];
+
+  // ✅ derived states
+  const isEnrolled = !!course && mineIds.includes(course._id);
+  const hasSubscription = !!subscription && ALLOW_SUB_STATES.has(subscription.status);
+  const isFree = (course.price ?? 0) === 0;
+  const canEnroll = isFree || hasSubscription;
+
+  const onEnroll = async () => {
+    if (!course) return;
+    await dispatch(enrollToCourse(course._id));
+    // Refresh to sync any other widgets (stats, etc.)
+    dispatch(fetchMyEnrollments());
+  };
 
   return (
     <Box>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
         <Card sx={{ flex: 2 }}>
-          <CardMedia 
-            component="img" 
-            height="340" 
-            image={course.thumbnail} 
+          <CardMedia
+            component="img"
+            height="340"
+            image={course.thumbnail}
             alt={course.title}
-            onError={(e) => {
-              // Fallback image if thumbnail fails to load
-              const target = e.target as HTMLImageElement;
-              target.src = 'https://via.placeholder.com/800x340/cccccc/666666?text=Course+Image';
-            }}
+            onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/800x340/cccccc/666666?text=Course+Image'; }}
           />
           <CardContent>
             <Typography variant="h4" gutterBottom>{course.title}</Typography>
             <Typography variant="body1" sx={{ mb: 2 }}>{course.description}</Typography>
-            
+
             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mb: 2 }}>
               <Chip label={course.category} color="primary" variant="outlined" />
               <Chip label={course.difficulty} color="secondary" variant="outlined" />
-              <Chip 
-                label={`${Math.floor(course.duration / 60)}h ${course.duration % 60}m`} 
-                variant="outlined" 
-              />
-              <Chip 
-                label={`${course.enrolledCount} students`} 
-                variant="outlined" 
-              />
-              <Chip 
-                label={`⭐ ${course.rating} (${course.ratingCount})`} 
-                variant="outlined" 
-              />
+              <Chip label={`${Math.floor(course.duration / 60)}h ${course.duration % 60}m`} variant="outlined" />
+              <Chip label={`${course.enrolledCount} students`} variant="outlined" />
+              <Chip label={`⭐ ${course.rating} (${course.ratingCount})`} variant="outlined" />
             </Stack>
 
             {/* Requirements Section */}
@@ -184,39 +193,37 @@ const CourseDetail: React.FC = () => {
             {/* Pricing Information */}
             <Typography variant="h6" gutterBottom>Course Access</Typography>
             {course.price > 0 ? (
-              <Typography variant="h5" color="primary" gutterBottom>
-                ${course.price}
-              </Typography>
+              <Typography variant="h5" color="primary" gutterBottom>${course.price}</Typography>
             ) : (
-              <Typography variant="h6" color="success.main" gutterBottom>
-                Free Course
-              </Typography>
+              <Typography variant="h6" color="success.main" gutterBottom>Free Course</Typography>
             )}
-            
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Get access with an active subscription or enroll directly.
+              Enroll with an active subscription{isFree ? ' or for free' : ''}.
             </Typography>
-            
+
             <Stack spacing={2}>
-              <Button 
-                fullWidth 
-                variant="contained" 
-                size="large"
-                href="/subscription"
-                sx={{ py: 1.5 }}
-              >
+              {/* Keep link to Subscription page */}
+              <Button fullWidth variant="contained" size="large" href="/subscription" sx={{ py: 1.5 }}>
                 View Subscription Plans
               </Button>
-              
-              <Button 
-                fullWidth 
-                variant="outlined" 
-                size="large"
-                sx={{ py: 1.5 }}
-                disabled // Enable when enrollment system is implemented
-              >
-                Enroll Now
-              </Button>
+
+              {/* ✅ Enrollment button logic */}
+              {isEnrolled ? (
+                <Button fullWidth variant="contained" size="large" color="success" disabled sx={{ py: 1.5 }}>
+                  Enrolled
+                </Button>
+              ) : (
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  size="large"
+                  sx={{ py: 1.5 }}
+                  disabled={!canEnroll || enrolling}
+                  onClick={onEnroll}
+                >
+                  {canEnroll ? (enrolling ? 'Enrolling…' : 'Enroll Now') : 'Enroll (requires subscription)'}
+                </Button>
+              )}
             </Stack>
 
             <Divider sx={{ my: 2 }} />
