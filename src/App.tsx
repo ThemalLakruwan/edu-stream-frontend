@@ -1,10 +1,11 @@
-// frontend/src/App.tsx - UPDATED VERSION (Google Maps Removed)
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+// frontend/src/App.tsx - ENHANCED VERSION
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { store } from './store/store';
+import { theme } from './theme/theme'; // Updated theme import
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout/Layout';
 import Home from './pages/Home';
@@ -15,20 +16,6 @@ import Subscription from './pages/Subscription';
 import AuthCallback from './pages/AuthCallback';
 import AuthError from './pages/AuthError';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
-import { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
-});
 
 const AuthSuccess: React.FC = () => {
   const location = useLocation();
@@ -41,10 +28,10 @@ const AuthSuccess: React.FC = () => {
     if (token) {
       localStorage.setItem('token', token);
       console.log('Token stored:', token);
-      navigate('/dashboard'); // Redirect to dashboard
+      navigate('/dashboard');
     } else {
       console.error('No token received');
-      navigate('/'); // Redirect to home
+      navigate('/');
     }
   }, [location, navigate]);
 
@@ -55,7 +42,20 @@ const AppContent: React.FC = () => {
   const { initialized } = useAuth();
 
   if (!initialized) {
-    return <div>Loading...</div>;
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: 'linear-gradient(135deg, #2563eb 0%, #06b6d4 100%)',
+        color: 'white',
+        fontSize: '1.2rem',
+        fontWeight: 600,
+      }}>
+        Loading EduStream...
+      </div>
+    );
   }
 
   return (
@@ -67,7 +67,6 @@ const AppContent: React.FC = () => {
           <Route path="/courses/:id" element={<CourseDetail />} />
           <Route path="/auth/success" element={<AuthCallback />} />
           <Route path="/auth/error" element={<AuthError />} />
-          <Route path="/auth/success" element={<AuthSuccess />} />
           <Route
             path="/dashboard"
             element={

@@ -4,7 +4,8 @@ import Grid from '@mui/material/GridLegacy';
 import {
   Box, Typography, Card, CardContent, Chip, Button,
   TextField, IconButton, Table, TableHead, TableRow, TableCell, TableBody, Tabs, Tab,
-  Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, CircularProgress
+  Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, CircularProgress,
+  Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -15,7 +16,7 @@ import PublicOffIcon from '@mui/icons-material/PublicOff';
 
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { fetchCurrentSubscription } from '../store/slices/subscriptionSlice';
-import { fetchCourses } from '../store/slices/coursesSlice';
+import { fetchCourses, fetchCategories } from '../store/slices/coursesSlice';
 import { fetchAdmins, grantAdmin, revokeAdmin } from '../store/slices/adminSlice';
 import { fetchMyEnrollments, fetchEnrollmentSummary } from '../store/slices/enrollmentSlice';
 import { adminCoursesAPI } from '../services/api';
@@ -30,11 +31,31 @@ type AdminCourse = {
   createdAt?: string;
 };
 
+// Predefined options for dropdowns
+const DIFFICULTY_OPTIONS = [
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' }
+];
+
+const DEFAULT_CATEGORY_OPTIONS = [
+  { value: 'General', label: 'General' },
+  { value: 'Programming', label: 'Programming' },
+  { value: 'Data Science', label: 'Data Science' },
+  { value: 'Machine Learning', label: 'Machine Learning' },
+  { value: 'Web Development', label: 'Web Development' },
+  { value: 'Mobile Development', label: 'Mobile Development' },
+  { value: 'DevOps', label: 'DevOps' },
+  { value: 'Design', label: 'Design' },
+  { value: 'Business', label: 'Business' },
+  { value: 'Marketing', label: 'Marketing' }
+];
+
 const Dashboard: React.FC = () => {
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((s) => s.auth);
   const { current } = useAppSelector((s) => s.subscription);
-  const { courses } = useAppSelector((s) => s.courses);
+  const { courses, categories } = useAppSelector((s) => s.courses);
   const { admins } = useAppSelector((s) => s.admin);
   const { mine, summary } = useAppSelector((s) => s.enrollments);
   const isAdmin = user?.role === 'admin';
@@ -61,6 +82,16 @@ const Dashboard: React.FC = () => {
     open: false, message: '', severity: 'success'
   });
 
+  // Get category options (from Redux store + fallback defaults)
+  const getCategoryOptions = () => {
+    if (categories && categories.length > 0) {
+      return categories
+        .filter(cat => cat.isActive)
+        .map(cat => ({ value: cat.name, label: cat.name }));
+    }
+    return DEFAULT_CATEGORY_OPTIONS;
+  };
+
   const loadAdminCourses = async () => {
     if (!isAdmin) return;
     try {
@@ -78,6 +109,7 @@ const Dashboard: React.FC = () => {
     dispatch(fetchCurrentSubscription());
     dispatch(fetchCourses({ limit: 4, sortBy: 'new' }));   // public list
     dispatch(fetchMyEnrollments());
+    dispatch(fetchCategories()); // Load categories for dropdown
     if (isAdmin) {
       dispatch(fetchAdmins());
       dispatch(fetchEnrollmentSummary());
@@ -223,7 +255,7 @@ const Dashboard: React.FC = () => {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>My Enrolled Courses</Typography>
-                {mine.length === 0 && <Typography variant="body2">You’re not enrolled in any courses yet.</Typography>}
+                {mine.length === 0 && <Typography variant="body2">You're not enrolled in any courses yet.</Typography>}
                 {mine.map((e, idx) => (
                   <Box key={idx} sx={{ mb: 1.5 }}>
                     <Typography variant="subtitle1">{e.course.title}</Typography>
@@ -280,7 +312,6 @@ const Dashboard: React.FC = () => {
               </Box>
             )}
 
-            {/* Courses */}
             {/* Courses tab */}
             {tab === 1 && (
               <Box>
@@ -339,22 +370,90 @@ const Dashboard: React.FC = () => {
                   </Table>
                 )}
 
+                {/* Updated Course Form Dialog with Dropdowns */}
                 <Dialog open={openCourseDlg} onClose={() => setOpenCourseDlg(false)} fullWidth maxWidth="sm">
                   <DialogTitle>{editingCourseId ? 'Edit Course' : 'Add Course'}</DialogTitle>
                   <DialogContent dividers>
                     <Box sx={{ display: 'grid', gap: 2, mt: 1 }}>
-                      <TextField label="Title" value={courseForm.title} onChange={e => setCourseForm({ ...courseForm, title: e.target.value })} />
-                      <TextField label="Description" value={courseForm.description} onChange={e => setCourseForm({ ...courseForm, description: e.target.value })} multiline minRows={3} />
-                      <TextField label="Category" value={courseForm.category} onChange={e => setCourseForm({ ...courseForm, category: e.target.value })} />
-                      <TextField label="Difficulty" value={courseForm.difficulty} onChange={e => setCourseForm({ ...courseForm, difficulty: e.target.value })} />
-                      <TextField label="Duration (min)" type="number" value={courseForm.duration} onChange={e => setCourseForm({ ...courseForm, duration: e.target.value })} />
-                      <TextField label="Price" type="number" value={courseForm.price} onChange={e => setCourseForm({ ...courseForm, price: e.target.value })} />
-                      {!editingCourseId && <input type="file" accept="image/*" onChange={e => setCourseForm({ ...courseForm, thumbnailFile: e.target.files?.[0] || null })} />}
+                      <TextField 
+                        label="Title" 
+                        value={courseForm.title} 
+                        onChange={e => setCourseForm({ ...courseForm, title: e.target.value })} 
+                      />
+                      
+                      <TextField 
+                        label="Description" 
+                        value={courseForm.description} 
+                        onChange={e => setCourseForm({ ...courseForm, description: e.target.value })} 
+                        multiline 
+                        minRows={3} 
+                      />
+                      
+                      {/* Category Dropdown */}
+                      <FormControl fullWidth>
+                        <InputLabel>Category</InputLabel>
+                        <Select
+                          value={courseForm.category}
+                          onChange={e => setCourseForm({ ...courseForm, category: e.target.value })}
+                          label="Category"
+                        >
+                          {getCategoryOptions().map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      
+                      {/* Difficulty Dropdown */}
+                      <FormControl fullWidth>
+                        <InputLabel>Difficulty</InputLabel>
+                        <Select
+                          value={courseForm.difficulty}
+                          onChange={e => setCourseForm({ ...courseForm, difficulty: e.target.value })}
+                          label="Difficulty"
+                        >
+                          {DIFFICULTY_OPTIONS.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      
+                      <TextField 
+                        label="Duration (minutes)" 
+                        type="number" 
+                        value={courseForm.duration} 
+                        onChange={e => setCourseForm({ ...courseForm, duration: e.target.value })}
+                        inputProps={{ min: 1 }}
+                      />
+                      
+                      <TextField 
+                        label="Price ($)" 
+                        type="number" 
+                        value={courseForm.price} 
+                        onChange={e => setCourseForm({ ...courseForm, price: e.target.value })}
+                        inputProps={{ min: 0, step: 0.01 }}
+                      />
+                      
+                      {!editingCourseId && (
+                        <Box>
+                          <Typography variant="body2" sx={{ mb: 1 }}>Course Thumbnail</Typography>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={e => setCourseForm({ ...courseForm, thumbnailFile: e.target.files?.[0] || null })} 
+                          />
+                        </Box>
+                      )}
                     </Box>
                   </DialogContent>
                   <DialogActions>
                     <Button onClick={() => setOpenCourseDlg(false)}>Cancel</Button>
-                    <Button variant="contained" onClick={submitCourse}>{editingCourseId ? 'Save' : 'Create'}</Button>
+                    <Button variant="contained" onClick={submitCourse}>
+                      {editingCourseId ? 'Save Changes' : 'Create Course'}
+                    </Button>
                   </DialogActions>
                 </Dialog>
               </Box>
