@@ -74,7 +74,7 @@ const Home: React.FC = () => {
                     component="span" 
                     sx={{ 
                       display: 'block',
-                      background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                      background: 'linear-gradient(135deg, #d5ff01ff 0%, #e0ffa2ff 100%)',
                       backgroundClip: 'text',
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
@@ -104,14 +104,14 @@ const Home: React.FC = () => {
                     size="large"
                     href="/courses"
                     sx={{
-                      background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                      background: 'linear-gradient(135deg, #ffffffff 0%, #fffefdff 100%)',
                       color: '#0f172a',
                       fontWeight: 600,
                       px: 4,
                       py: 2,
                       fontSize: '1.1rem',
                       '&:hover': {
-                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        background: 'linear-gradient(135deg, #d5ff01ff 0%, #e0ffa2ff 100%)',
                         transform: 'translateY(-2px)',
                       },
                     }}
