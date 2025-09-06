@@ -1,4 +1,4 @@
-// frontend/src/components/Layout/Layout.tsx - ENHANCED VERSION
+// frontend/src/components/Layout/Layout.tsx - ENHANCED VERSION WITH LOGO
 import React from 'react';
 import { 
   AppBar, 
@@ -72,11 +72,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     mr: 2,
+                    padding: '4px', // Add padding for the logo
                   }}
                 >
-                  <Typography variant="h6" sx={{ color: 'white', fontWeight: 700 }}>
-                    E
-                  </Typography>
+                  <img
+                    src="/logo.png" // Path to your logo in the public folder
+                    alt="EduStream Logo"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain', // Ensures the logo maintains aspect ratio
+                      borderRadius: '50%', // Makes the image circular if needed
+                    }}
+                    onError={(e) => {
+                      // Fallback to text if logo fails to load
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      target.parentElement!.innerHTML = '<Typography variant="h6" sx={{ color: "white", fontWeight: 700 }}>E</Typography>';
+                    }}
+                  />
                 </Box>
                 <Typography 
                   variant="h6" 
